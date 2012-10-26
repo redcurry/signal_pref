@@ -12,24 +12,24 @@
 using namespace std;
 
 
-#define N 1000    // Population size
+#define N 100     // Population size
 
 // Mutation rates (per genome per generation)
-#define U_PREF_POS     0.025
-#define U_PREF_VALUE   0.005
-#define U_SIGNAL_POS   0 //0.025
-#define U_SIGNAL_VALUE 0.005
+#define U_PREF_POS     1
+#define U_PREF_VALUE   1
+#define U_SIGNAL_POS   1
+#define U_SIGNAL_VALUE 1
 
-#define INIT_PREF_POS 0.99
+#define INIT_PREF_POS 0.5
 #define INIT_PREF_VALUE 0.5
 
-#define INIT_SIGNAL_POS 0.8
+#define INIT_SIGNAL_POS 0.5
 #define INIT_SIGNAL_VALUE 0.5
 
-#define LOVE_SLOPE -0.1
+#define LOVE_SLOPE -8
 
-#define POS_MUT_EFFECT 0.05
-#define VALUE_MUT_EFFECT 0.001
+#define POS_MUT_EFFECT 0.01
+#define VALUE_MUT_EFFECT 0.1
 
 #define UPDATES 10000000   // Number of replication attempts to perform
 
@@ -43,6 +43,9 @@ struct organism
   float signal_value;
 
   int generation;
+
+  void print() { cout << pref_pos << ", " << pref_value << ", "
+                      << signal_pos << ", " << signal_value << endl; }
 };
 
 
@@ -61,6 +64,7 @@ void replicate_next_organism(vector<organism> & pop);
 bool should_recombine(organism const & parent_1, organism const & parent_2);
 double prob_love(organism const & parent_1, organism const & parent_2);
 organism recombine(organism const & parent_1, organism const & parent_2);
+bool is_inside(double pos, double start, double end);
 double mutate_pos(double pos);
 double mutate_value(double value);
 
@@ -100,6 +104,27 @@ int main(int argc, char* argv[])
 
   //print(get_pref_pos(pop));
 
+/*
+  organism parent1;
+  parent1.pref_pos = rand_0_to_1();
+  parent1.pref_value = rand_0_to_1();
+  parent1.signal_pos = rand_0_to_1();
+  parent1.signal_value = rand_0_to_1();
+  parent1.generation = 0;
+
+  organism parent2;
+  parent2.pref_pos = rand_0_to_1();
+  parent2.pref_value = rand_0_to_1();
+  parent2.signal_pos = rand_0_to_1();
+  parent2.signal_value = rand_0_to_1();
+  parent2.generation = 0;
+
+  parent1.print();
+  parent2.print();
+
+  organism recombinant = recombine(parent1, parent2);
+  recombinant.print();
+*/
   return 0;
 }
 
@@ -137,7 +162,9 @@ void replicate_next_organism(vector<organism> & pop)
   if (!should_recombine(parent_1, parent_2))
     return;
 
-  organism const & recombinant = recombine(parent_1, parent_2);
+  organism recombinant = recombine(parent_1, parent_2);
+  for (int i = 0; i < 100; i++)
+    recombinant = recombine(recombinant, recombinant);
 
   // Do nothing if recombinant didn't inherit pref or signal
   if (recombinant.pref_pos < 0 || recombinant.signal_pos < 0)
@@ -186,62 +213,57 @@ double prob_love(organism const & parent_1, organism const & parent_2)
 
 organism recombine(organism const & parent_1, organism const & parent_2)
 {
-  double crossover_pt_1 = rand_0_to_1();
-  double crossover_pt_2 = rand_0_to_1();
+  double crossover_start = rand_0_to_1();
+  double crossover_size = rand_0_to_1();
 
-  // Crossover point 1 should be smaller than point 2
-  if (crossover_pt_2 < crossover_pt_1)
-  {
-    double temp = crossover_pt_1;
-    crossover_pt_1 = crossover_pt_2;
-    crossover_pt_2 = temp;
-  }
-
-  organism const * actual_parent_1 = &parent_1;
-  organism const * actual_parent_2 = &parent_2;
+  double crossover_end = crossover_start + crossover_size;
+  if (crossover_end > 1)
+    crossover_end -= 1;
 /*
-  if (rand_0_to_1() < 0.5)
-  {
-    actual_parent_1 = &parent_2;
-    actual_parent_2 = &parent_1;
-  }
+  cout << "crossover: " << crossover_start << ", " << crossover_end
+    << ", size: " << crossover_size << endl;
 */
   organism recombinant;
   recombinant.pref_pos = -1;      // sentinel that pref wasn't inherited
   recombinant.signal_pos = -1;    // sentinel that signal wasn't inherited
 
-  if (actual_parent_1->pref_pos < crossover_pt_1 ||
-      actual_parent_1->pref_pos > crossover_pt_2)
+  if (is_inside(parent_1.pref_pos, crossover_start, crossover_end))
   {
-    recombinant.pref_pos = actual_parent_1->pref_pos;
-    recombinant.pref_value = actual_parent_1->pref_value;
+    recombinant.pref_pos = parent_1.pref_pos;
+    recombinant.pref_value = parent_1.pref_value;
   }
 
-  if (actual_parent_1->signal_pos < crossover_pt_1 ||
-      actual_parent_1->signal_pos > crossover_pt_2)
+  if (is_inside(parent_1.signal_pos, crossover_start, crossover_end))
   {
-    recombinant.signal_pos = actual_parent_1->signal_pos;
-    recombinant.signal_value = actual_parent_1->signal_value;
+    recombinant.signal_pos = parent_1.signal_pos;
+    recombinant.signal_value = parent_1.signal_value;
   }
 
-  if (actual_parent_2->pref_pos > crossover_pt_1 &&
-      actual_parent_2->pref_pos < crossover_pt_2)
+  if (!is_inside(parent_2.pref_pos, crossover_start, crossover_end))
   {
-    recombinant.pref_pos = actual_parent_2->pref_pos;
-    recombinant.pref_value = actual_parent_2->pref_value;
+    recombinant.pref_pos = parent_2.pref_pos;
+    recombinant.pref_value = parent_2.pref_value;
   }
 
-  if (actual_parent_2->signal_pos > crossover_pt_1 &&
-      actual_parent_2->signal_pos < crossover_pt_2)
+  if (!is_inside(parent_2.signal_pos, crossover_start, crossover_end))
   {
-    recombinant.signal_pos = actual_parent_2->signal_pos;
-    recombinant.signal_value = actual_parent_2->signal_value;
+    recombinant.signal_pos = parent_2.signal_pos;
+    recombinant.signal_value = parent_2.signal_value;
   }
 
   // Force them to be equal
   //recombinant.signal_value = recombinant.pref_value;
 
   return recombinant;
+}
+
+
+bool is_inside(double pos, double start, double end)
+{
+  if (start < end)
+    return pos > start && pos < end;
+  else
+    return pos > start || pos < end;
 }
 
 
@@ -253,23 +275,23 @@ double rand_0_to_1()
 
 double mutate_pos(double pos)
 {
-/*
+
   double new_pos = pos + (rand_0_to_1() - 0.5) * POS_MUT_EFFECT;
   if (new_pos < 0.0)
     return new_pos + 1;
   else if (new_pos > 1)
     return new_pos - 1;
   return new_pos;
-*/
+
 //  return new_pos < 0 ? 0 : (new_pos >= 1 ? 0.9999 : new_pos);
-  return rand_0_to_1();
+//  return rand_0_to_1();
 }
 
 
 double mutate_value(double value)
 {
-//  return value + (rand_0_to_1() - 0.5) * VALUE_MUT_EFFECT;
-  return rand_0_to_1();
+  return value + (rand_0_to_1() - 0.5) * VALUE_MUT_EFFECT;
+//  return rand_0_to_1();
 }
 
 
